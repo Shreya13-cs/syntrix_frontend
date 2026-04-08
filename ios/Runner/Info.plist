@@ -66,5 +66,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Permissions for image_picker and file_picker -->
+	<key>NSCameraUsageDescription</key>
+	<string>Syntrix needs camera access to capture your health report documents.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Syntrix needs photo library access to upload your health report images.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Syntrix needs access to save report images to your photo library.</string>
 </dict>
 </plist>

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'condition_selection_screen.dart';
+import '../onboarding/condition_selection_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -16,6 +16,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _heightController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _dobController = TextEditingController();
+  DateTime? _selectedDob;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -26,6 +30,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _heightController.dispose();
+    _weightController.dispose();
+    _dobController.dispose();
     super.dispose();
   }
 
@@ -47,8 +54,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               );
             },
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
                 color: isError
                     ? const Color(0xFFDC2626)
@@ -66,9 +72,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isError
-                        ? Icons.error_outline
-                        : Icons.check_circle_outline,
+                    isError ? Icons.error_outline : Icons.check_circle_outline,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -99,7 +103,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
+        _confirmPasswordController.text.isEmpty ||
+        _heightController.text.isEmpty ||
+        _weightController.text.isEmpty ||
+        _dobController.text.isEmpty) {
       _showNotification('Please fill in all fields', isError: true);
       return;
     }
@@ -148,12 +155,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
               .set({
                 'name': _nameController.text.trim(),
                 'email': user.email,
+                'height': double.tryParse(_heightController.text) ?? 0,
+                'weight': double.tryParse(_weightController.text) ?? 0,
+                'dob': _selectedDob != null
+                    ? Timestamp.fromDate(_selectedDob!)
+                    : null,
                 'createdAt': FieldValue.serverTimestamp(),
                 'onboardingCompleted': false,
               })
               .then((_) => print('Signup: Background save for UID finished'))
               .catchError((e) => print('Signup: Background error: $e'));
-          
+
           print('Signup: Firestore save triggered in background');
         } catch (e) {
           print('Signup: Initial trigger error: $e');
@@ -211,7 +223,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     required String hint,
     TextInputType keyboardType = TextInputType.text,
     bool obscure = false,
+    bool readOnly = false,
     VoidCallback? onToggleObscure,
+    VoidCallback? onTap,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -229,11 +243,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         controller: controller,
         keyboardType: keyboardType,
         obscureText: obscure,
+        readOnly: readOnly,
+        onTap: onTap,
         style: const TextStyle(color: Color(0xFF1A2B3C), fontSize: 15),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle:
-              const TextStyle(color: Color(0xFFB0BEC5), fontSize: 15),
+          hintStyle: const TextStyle(color: Color(0xFFB0BEC5), fontSize: 15),
           prefixIcon: Icon(icon, color: const Color(0xFF7A8FA6), size: 20),
           suffixIcon: onToggleObscure != null
               ? IconButton(
@@ -249,8 +264,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               : null,
           filled: true,
           fillColor: Colors.white,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
@@ -378,6 +395,93 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                   const SizedBox(height: 18),
 
+                  // ── Date of Birth ──────────────────────────────────────
+                  const Text(
+                    'Date of Birth',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF3D5166),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildField(
+                    controller: _dobController,
+                    icon: Icons.calendar_today_outlined,
+                    hint: 'DD/MM/YYYY',
+                    readOnly: true,
+                    onTap: () async {
+                      final DateTime? picked = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime(2000),
+                        firstDate: DateTime(1950),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _selectedDob = picked;
+                          _dobController.text =
+                              "${picked.day}/${picked.month}/${picked.year}";
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // ── Height and Weight Row ──────────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Height (cm)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF3D5166),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildField(
+                              controller: _heightController,
+                              icon: Icons.height_outlined,
+                              hint: '165',
+                              keyboardType: TextInputType.number,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Weight (kg)',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF3D5166),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildField(
+                              controller: _weightController,
+                              icon: Icons.monitor_weight_outlined,
+                              hint: '55',
+                              keyboardType: TextInputType.number,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
                   // ── Email ──────────────────────────────────────────────
                   const Text(
                     'Email',
@@ -448,15 +552,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(30),
                         gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFB5616A),
-                            Color(0xFFC47A82),
-                          ],
+                          colors: [Color(0xFFB5616A), Color(0xFFC47A82)],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color:
-                                const Color(0xFFB5616A).withValues(alpha: 0.35),
+                            color: const Color(
+                              0xFFB5616A,
+                            ).withValues(alpha: 0.35),
                             blurRadius: 16,
                             offset: const Offset(0, 6),
                           ),
@@ -507,7 +609,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         children: [
                           TextSpan(
-                            text: "By creating an account, you agree to Serene Cycle's\n",
+                            text:
+                                "By creating an account, you agree to Serene Cycle's\n",
                           ),
                           TextSpan(
                             text: 'Terms of Service',

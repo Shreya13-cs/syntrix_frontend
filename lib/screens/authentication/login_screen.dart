@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'signup_screen.dart';
-import 'home_screen.dart';
+import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -244,8 +244,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF2E4A6B)
-                                    .withValues(alpha: 0.06),
+                                color: const Color(
+                                  0xFF2E4A6B,
+                                ).withValues(alpha: 0.06),
                                 blurRadius: 24,
                                 offset: const Offset(0, 8),
                               ),
@@ -383,8 +384,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFB5616A)
-                                      .withValues(alpha: 0.35),
+                                  color: const Color(
+                                    0xFFB5616A,
+                                  ).withValues(alpha: 0.35),
                                   blurRadius: 16,
                                   offset: const Offset(0, 6),
                                 ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'home_screen.dart';
+import '../home/home_screen.dart';
 
 class ConditionSelectionScreen extends StatefulWidget {
   const ConditionSelectionScreen({super.key});
@@ -15,6 +15,7 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
   // Possible values: 'pcos', 'pregnant', 'menopause', 'none'
   String _selectedCondition = 'pregnant';
   String _selectedTrimester = '1st Trimester (Weeks 1–12)';
+  final _descriptionController = TextEditingController();
   bool _isLoading = false;
 
   final List<_ConditionOption> _options = [
@@ -61,6 +62,7 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
 
       final Map<String, dynamic> data = {
         'lifeStage': _selectedCondition,
+        'personalDescription': _descriptionController.text.trim(),
         'onboardingCompleted': true,
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -70,7 +72,7 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
       }
 
       print('Saving condition for UID: ${user.uid} (Background)');
-      
+
       // Trigger background update
       FirebaseFirestore.instance
           .collection('users')
@@ -257,6 +259,60 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
                             ),
                           ),
                         ],
+
+                        const SizedBox(height: 20),
+
+                        // ── Optional Description ─────────────────────
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Tell us more about you (Optional)',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1A2B3C),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(
+                                  0xFF2E4A6B,
+                                ).withValues(alpha: 0.06),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: TextField(
+                            controller: _descriptionController,
+                            maxLines: 4,
+                            maxLength: 250,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF1A2B3C),
+                            ),
+                            decoration: InputDecoration(
+                              hintText:
+                                  'e.g., Any specific symptoms, medical history, or goals...',
+                              hintStyle: const TextStyle(
+                                color: Color(0xFFB0BEC5),
+                              ),
+                              contentPadding: const EdgeInsets.all(20),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide.none,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                            ),
+                          ),
+                        ),
 
                         const SizedBox(height: 20),
 
