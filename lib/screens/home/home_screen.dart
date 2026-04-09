@@ -68,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final stage = data['lifeStage'] as String? ?? 'none';
         final weightVal = data['weight'] != null ? (data['weight'] as num).toDouble() : null;
         final heightVal = data['height'] != null ? (data['height'] as num).toDouble() : null;
+        final photoUrl = data['photoUrl'] as String?;
         
         String formattedDob = "--";
         if (data['dob'] != null) {
@@ -84,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
           newHeight: heightVal?.toString(),
           newCondition: _conditionTags[stage] ?? 'General Tracking',
           newDob: formattedDob,
+          newPhotoUrl: photoUrl,
         );
 
         setState(() {

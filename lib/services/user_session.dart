@@ -5,6 +5,7 @@ class UserSession {
   static String? height;
   static String? dob;
   static String? condition;
+  static String? photoUrl;
 
   /// Returns true if the cache has data
   static bool get isDataCached => name != null;
@@ -16,6 +17,7 @@ class UserSession {
     height = null;
     dob = null;
     condition = null;
+    photoUrl = null;
   }
 
   /// Updates the local cache with new data
@@ -25,11 +27,13 @@ class UserSession {
     String? newHeight,
     String? newDob,
     String? newCondition,
+    String? newPhotoUrl,
   }) {
     if (newName != null) name = newName;
     if (newWeight != null) weight = newWeight;
     if (newHeight != null) height = newHeight;
     if (newDob != null) dob = newDob;
     if (newCondition != null) condition = newCondition;
+    if (newPhotoUrl != null) photoUrl = newPhotoUrl;
   }
 }

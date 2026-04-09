@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../onboarding/condition_selection_screen.dart';
+import '../../services/cloudinary_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -23,6 +26,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
+  XFile? _imageFile;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickImage() async {
+    final XFile? picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50, // Optimize for profile pics
+    );
+    if (picked != null) {
+      setState(() => _imageFile = picked);
+    }
+  }
 
   @override
   void dispose() {
@@ -143,9 +158,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
       print('Display name updated');
 
       // 2. Save user data to Firestore
-      // Structure: users → {uid} → { name, email, createdAt, onboardingCompleted }
       final user = userCredential.user;
       if (user != null) {
+        String? photoUrl;
+
+        // Upload profile picture if picked
+        if (_imageFile != null) {
+          final bytes = await _imageFile!.readAsBytes();
+          photoUrl = await CloudinaryService.uploadFile(
+            bytes,
+            'profile_${user.uid}.${_imageFile!.path.split('.').last}',
+          );
+        }
+
         print('Signup: Saving to Firestore for UID: ${user.uid}');
         try {
           // Background sync to avoid blocking the UI on slow internet
@@ -155,6 +180,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               .set({
                 'name': _nameController.text.trim(),
                 'email': user.email,
+                'photoUrl': photoUrl,
                 'height': double.tryParse(_heightController.text) ?? 0,
                 'weight': double.tryParse(_weightController.text) ?? 0,
                 'dob': _selectedDob != null
@@ -165,6 +191,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
               })
               .then((_) => print('Signup: Background save for UID finished'))
               .catchError((e) => print('Signup: Background error: $e'));
+
+          // Update Auth photoURL too
+          if (photoUrl != null) {
+            await user.updatePhotoURL(photoUrl);
+          }
 
           print('Signup: Firestore save triggered in background');
         } catch (e) {
@@ -325,27 +356,58 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   const SizedBox(height: 36),
 
-                  // ── Circular icon badge ────────────────────────────────
+                  // ── Profile Photo Selection ───────────────────────────
                   Center(
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 16,
-                            offset: Offset(0, 6),
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            image: _imageFile != null
+                                ? DecorationImage(
+                                    image: FileImage(File(_imageFile!.path)),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2E4A6B).withValues(alpha: 0.1),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.energy_savings_leaf_rounded,
-                        color: Color(0xFF2E4A6B),
-                        size: 34,
-                      ),
+                          child: _imageFile == null
+                              ? const Icon(
+                                  Icons.person_add_alt_1_rounded,
+                                  color: Color(0xFF2E4A6B),
+                                  size: 40,
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: _pickImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFB5616A),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 

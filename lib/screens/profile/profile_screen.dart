@@ -18,6 +18,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _height;
   String? _dob;
   String? _condition;
+  String? _photoUrl;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _height = UserSession.height;
           _dob = UserSession.dob;
           _condition = UserSession.condition;
+          _photoUrl = UserSession.photoUrl;
         });
       }
       return; // Skip the firestore call
@@ -49,12 +51,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .get();
       if (doc.exists && mounted) {
         final data = doc.data()!;
-        
+
         String formattedDob = "--";
         if (data['dob'] != null) {
           final Timestamp ts = data['dob'];
           final DateTime dt = ts.toDate();
-          final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          final months = [
+            'Jan',
+            'Feb',
+            'Mar',
+            'Apr',
+            'May',
+            'Jun',
+            'Jul',
+            'Aug',
+            'Sep',
+            'Oct',
+            'Nov',
+            'Dec',
+          ];
           formattedDob = "${months[dt.month - 1]} ${dt.day}, ${dt.year}";
         }
 
@@ -64,6 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _height = data['height']?.toString() ?? "--";
           _condition = data['lifeStage'] ?? "General Tracking";
           _dob = formattedDob;
+          _photoUrl = data['photoUrl'] as String?;
 
           // Store in our static cache for next time
           UserSession.update(
@@ -72,6 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             newHeight: _height,
             newCondition: _condition,
             newDob: _dob,
+            newPhotoUrl: _photoUrl,
           );
         });
       }
@@ -87,7 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .collection('users')
           .doc(user!.uid)
           .update({key: value});
-      
+
       // Clear cache so it re-fetches updated data
       UserSession.clear();
       _fetchUserData();
@@ -186,14 +203,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.menu,
-                      color: Color(0xFF2E4A6B),
-                      size: 24,
-                    ),
-                    onPressed: () {},
-                  ),
                   const Text(
                     'Profile',
                     style: TextStyle(
@@ -224,8 +233,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 4),
-                      image: const DecorationImage(
-                        image: NetworkImage('https://i.pravatar.cc/300?img=32'),
+                      image: DecorationImage(
+                        image: _photoUrl != null
+                            ? NetworkImage(_photoUrl!)
+                            : const NetworkImage(
+                                'https://ui-avatars.com/api/?name=User&background=DDE8F5&color=2E4A6B',
+                              ),
                         fit: BoxFit.cover,
                       ),
                       boxShadow: [
