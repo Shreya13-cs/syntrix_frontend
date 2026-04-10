@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../home/home_screen.dart';
+import '../../services/user_session.dart';
 
 class LogEntryScreen extends StatefulWidget {
   final DateTime? editDate;
@@ -187,6 +188,18 @@ class _LogEntryScreenState extends State<LogEntryScreen> {
         'medication': _tookMedication ? _medicationNameCtrl.text.trim() : null,
         'periodPhase': _isOnPeriod ? 'Menstrual' : _selectedPhase,
       }, SetOptions(merge: true));
+
+      // ── Update Global Weight ──
+      if (weight != null) {
+        // 1. Update Firestore Users Collection
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user!.uid)
+            .update({'weight': weight});
+
+        // 2. Update Local Cache
+        UserSession.update(newWeight: weight.toString());
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

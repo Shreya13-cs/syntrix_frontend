@@ -1,6 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../services/cloudinary_service.dart';
 import '../../services/user_session.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -19,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? _dob;
   String? _condition;
   String? _photoUrl;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -189,6 +193,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _updateProfilePicture() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+    );
+
+    if (image == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final Uint8List bytes = await image.readAsBytes();
+      final String? url = await CloudinaryService.uploadFile(
+        bytes,
+        'profile_${user!.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+
+      if (url != null) {
+        await _updateMetric('photoUrl', url);
+        setState(() {
+          _photoUrl = url;
+        });
+      }
+    } catch (e) {
+      print("Error updating profile picture: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update profile picture')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -216,35 +258,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
               const SizedBox(height: 32),
 
-              // ── Profile Header ─────────────────────────────────────
               Stack(
                 alignment: Alignment.bottomRight,
                 children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
-                      image: DecorationImage(
-                        image: _photoUrl != null
-                            ? NetworkImage(_photoUrl!)
-                            : const NetworkImage(
-                                'https://ui-avatars.com/api/?name=User&background=DDE8F5&color=2E4A6B',
-                              ),
-                        fit: BoxFit.cover,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
+                  GestureDetector(
+                    onTap: _isUploading ? null : _updateProfilePicture,
+                    child: Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 4),
+                        image: DecorationImage(
+                          image: _photoUrl != null
+                              ? NetworkImage(_photoUrl!)
+                              : const NetworkImage(
+                                  'https://ui-avatars.com/api/?name=User&background=DDE8F5&color=2E4A6B',
+                                ),
+                          fit: BoxFit.cover,
+                          colorFilter: _isUploading
+                              ? ColorFilter.mode(
+                                  Colors.black.withValues(alpha: 0.3),
+                                  BlendMode.darken,
+                                )
+                              : null,
                         ),
-                      ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: _isUploading
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                   GestureDetector(
-                    onTap: _editName,
+                    onTap: _updateProfilePicture,
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: const BoxDecoration(
@@ -252,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
-                        Icons.edit_rounded,
+                        Icons.camera_alt_rounded,
                         color: Colors.white,
                         size: 16,
                       ),
@@ -261,13 +318,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              Text(
-                _name ?? "Sarah Miller",
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF1A1F26),
-                  letterSpacing: -0.5,
+              GestureDetector(
+                onTap: _editName,
+                child: Text(
+                  _name ?? "Sarah Miller",
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1A1F26),
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ),
               const SizedBox(height: 4),

@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import '../onboarding/condition_selection_screen.dart';
 import '../../services/cloudinary_service.dart';
+import '../../services/email_service.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -156,7 +157,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
       await userCredential.user?.updateDisplayName(_nameController.text.trim());
       print('Display name updated');
 
-      // 2. Save user data to Firestore
+      // 2. Send welcome email (fire-and-forget — won't block signup)
+      EmailService.sendWelcomeEmail(
+        toName: _nameController.text.trim(),
+        toEmail: _emailController.text.trim(),
+      );
+
+      // 3. Save user data to Firestore
       final user = userCredential.user;
       if (user != null) {
         String? photoUrl;

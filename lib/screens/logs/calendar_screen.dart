@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'log_entry_screen.dart';
+import '../report/reports_screen.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -67,7 +68,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
           if (morning.exists) _dayDetails['Morning'] = morning.data();
           if (afternoon.exists) _dayDetails['Afternoon'] = afternoon.data();
           if (night.exists) _dayDetails['Night'] = night.data();
-          _reportsList = reportsSnap.docs.map((d) => d.data()).toList();
+          _reportsList = reportsSnap.docs
+              .map((d) => {'_docId': d.id, ...d.data()})
+              .toList();
           _loadingDetails = false;
         });
       }
@@ -588,107 +591,359 @@ class _CalendarScreenState extends State<CalendarScreen> {
           'No reports for this day', Icons.description_outlined);
     }
     return Column(
-      children: _reportsList.map((f) {
-        final name = f['name'] ?? 'Report';
-        final url = f['url'] ?? '';
-        final sizeKB = f['sizeKB'] ?? 0;
-        final ext = name.split('.').last.toUpperCase();
-        final isImage = ['JPG', 'JPEG', 'PNG'].contains(ext);
+      children: _reportsList.map((report) => _buildReportCard(report)).toList(),
+    );
+  }
 
-        return GestureDetector(
-          onTap: () => _downloadAndOpenFile(url, name),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+  Widget _buildReportCard(Map<String, dynamic> report) {
+    final docId = report['_docId'] as String?;
+    final title = report['reportName'] ?? 'Health Report';
+    final metrics = report['metrics'] as Map<String, dynamic>? ?? {};
+    final urls = report['reportUrls'] as List<dynamic>? ?? [];
+    final date = report['date'] ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header with Edit button ───────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECF4FF),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
+                child: const Icon(
+                  Icons.health_and_safety_outlined,
+                  color: Color(0xFF2E4A6B),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1A2B3C),
+                      ),
+                    ),
+                    if (date.isNotEmpty)
+                      Text(
+                        date,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF7A8FA6),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              // Edit button
+              if (docId != null)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ReportsScreen(
+                          existingData: report,
+                          reportDocId: docId,
+                        ),
+                      ),
+                    ).then((_) => _fetchDayDetails(_selectedDate));
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F6FA),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.edit_outlined,
+                      size: 16,
+                      color: Color(0xFF2E4A6B),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          if (metrics.isNotEmpty) ...[
+            const Divider(height: 24, thickness: 0.5),
+
+            // ── Basic ────────────────────────────────────────
+            if (metrics['age'] != null || metrics['bmi'] != null)
+              _reportSection('BASIC', [
+                if (metrics['age'] != null)
+                  _reportChip('Age', '${metrics['age']} yrs'),
+                if (metrics['bmi'] != null)
+                  _reportChip('BMI', '${metrics['bmi']}'),
+              ]),
+
+
+            // ── Blood & Hormones ─────────────────────────────
+            () {
+              final hormoneEntries = <Widget>[];
+              for (final kv in {
+                'rbs': 'RBS mg/dL',
+                'tsh': 'TSH mIU/L',
+                'hb': 'Hb g/dL',
+                'whr': 'WHR',
+                'lh': 'LH mIU/mL',
+                'fsh': 'FSH mIU/mL',
+                'amh': 'AMH ng/mL',
+                'prl': 'PRL ng/mL',
+                'prg': 'PRG ng/mL',
+              }.entries) {
+                if (metrics[kv.key] != null) {
+                  hormoneEntries
+                      .add(_reportChip(kv.value, '${metrics[kv.key]}'));
+                }
+              }
+              if (hormoneEntries.isEmpty) return const SizedBox.shrink();
+              return _reportSection('BLOOD & HORMONES', hormoneEntries);
+            }(),
+
+          ],
+
+          // ── Attached Files ──────────────────────────────────
+          if (urls.isNotEmpty) ...[
+            const Divider(height: 24, thickness: 0.5),
+            const Text(
+              'ATTACHED FILES',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF7A8FA6),
+                letterSpacing: 1,
+              ),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 56,
+            const SizedBox(height: 10),
+            ...urls.map((url) {
+              final uri = url.toString();
+              final fileName = uri.split('/').last.split('?').first;
+              final ext = fileName.split('.').last.toUpperCase();
+              final isImage = ['JPG', 'JPEG', 'PNG'].contains(ext);
+              return GestureDetector(
+                onTap: () {
+                  if (isImage) {
+                    _showImageViewer(uri, fileName);
+                  } else {
+                    _downloadAndOpenFile(uri, fileName);
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: isImage
-                        ? const Color(0xFF3A6EA8).withOpacity(0.1)
-                        : const Color(0xFFB5616A).withOpacity(0.1),
+                    color: const Color(0xFFF4F6FA),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Row(
                     children: [
                       Icon(
                         isImage
                             ? Icons.image_outlined
                             : Icons.picture_as_pdf_outlined,
+                        size: 18,
                         color: isImage
                             ? const Color(0xFF3A6EA8)
                             : const Color(0xFFB5616A),
-                        size: 22,
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        ext,
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w800,
-                          color: isImage
-                              ? const Color(0xFF3A6EA8)
-                              : const Color(0xFFB5616A),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A2B3C),
+                          ),
                         ),
+                      ),
+                      Icon(
+                        isImage
+                            ? Icons.zoom_in_rounded
+                            : Icons.open_in_new_rounded,
+                        size: 14,
+                        color: const Color(0xFF7A8FA6),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Shows a full-screen image viewer dialog for uploaded images.
+  void _showImageViewer(String url, String title) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Title bar ──
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A2B3C),
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '$sizeKB KB  •  Uploaded ✓',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF2E7D6B),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D6B).withOpacity(0.1),
-                    shape: BoxShape.circle,
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ),
-                  child: const Icon(Icons.check_rounded,
-                      color: Color(0xFF2E7D6B), size: 14),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            // ── Image ──
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    width: double.infinity,
+                    height: 300,
+                    color: const Color(0xFF1A2B3C),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => Container(
+                  height: 200,
+                  color: const Color(0xFF1A2B3C),
+                  child: const Center(
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      color: Colors.white54,
+                      size: 48,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _reportSection(String title, List<Widget> chips) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF7A8FA6),
+              letterSpacing: 1,
+            ),
           ),
-        );
-      }).toList(),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: chips),
+        ],
+      ),
+    );
+  }
+
+  Widget _reportChip(String label, String value, {bool positive = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: positive
+            ? const Color(0xFFE8F5EE)
+            : const Color(0xFFF4F6FA),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '$label  ',
+              style: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF7A8FA6),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: positive
+                    ? const Color(0xFF2E7D6B)
+                    : const Color(0xFF1A2B3C),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
