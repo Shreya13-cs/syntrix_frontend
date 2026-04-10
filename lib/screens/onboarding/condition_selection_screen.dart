@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../home/home_screen.dart';
 
 class ConditionSelectionScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
   // Possible values: 'pcos', 'pregnant', 'menopause', 'none'
   String _selectedCondition = 'pregnant';
   String _selectedTrimester = '1st Trimester (Weeks 1–12)';
+  final _weekController = TextEditingController(text: '12'); // Default week
   final _descriptionController = TextEditingController();
   bool _isLoading = false;
 
@@ -68,7 +70,16 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
       };
 
       if (_selectedCondition == 'pregnant') {
-        data['trimester'] = _selectedTrimester;
+        final week = int.tryParse(_weekController.text) ?? 1;
+        String trimesterStr = '1st Trimester (Weeks 1–12)';
+        if (week >= 13 && week <= 26) {
+          trimesterStr = '2nd Trimester (Weeks 13–26)';
+        } else if (week >= 27) {
+          trimesterStr = '3rd Trimester (Weeks 27–40)';
+        }
+        _selectedTrimester = trimesterStr;
+        data['trimester'] = trimesterStr;
+        data['pregnancyWeek'] = week;
       }
 
       print('Saving condition for UID: ${user.uid} (Background)');
@@ -80,6 +91,14 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
           .set(data, SetOptions(merge: true))
           .then((_) => print('Condition: Background save finished'))
           .catchError((e) => print('Condition: Background error: $e'));
+
+      // Save to local storage for quick access on restart
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_condition', _selectedCondition);
+      if (_selectedCondition == 'pregnant') {
+        await prefs.setString('selectedTrimester', _selectedTrimester);
+        await prefs.setInt('pregnancyWeek', int.tryParse(_weekController.text) ?? 1);
+      }
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -169,12 +188,26 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
 
                 const SizedBox(height: 28),
 
+                // ── App Title ───────────────────────────────────────
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 28),
+                  child: Text(
+                    'Serene',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFB5616A),
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 // ── Title ────────────────────────────────────────────
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 28),
                   child: Text(
                     'Select Your Condition',
-                    textAlign: TextAlign.center,
+                    textAlign: TextAlign.left,
                     style: TextStyle(
                       fontSize: 25,
                       fontWeight: FontWeight.w800,
@@ -205,9 +238,21 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
                       children: [
                         ..._options.map((opt) => _buildOptionCard(opt)),
 
-                        // Trimester picker (only when Pregnancy selected)
+                        // Pregnancy Week Input (replacing Trimester picker)
                         if (_selectedCondition == 'pregnant') ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 12),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Which week of pregnancy are you in?',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A2B3C),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -226,36 +271,21 @@ class _ConditionSelectionScreenState extends State<ConditionSelectionScreen> {
                                 ),
                               ],
                             ),
-                            child: DropdownButton<String>(
-                              value: _selectedTrimester,
-                              isExpanded: true,
-                              underline: const SizedBox(),
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Color(0xFF7A8FA6),
+                            child: TextField(
+                              controller: _weekController,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF1A2B3C),
                               ),
-                              items:
-                                  [
-                                    '1st Trimester (Weeks 1–12)',
-                                    '2nd Trimester (Weeks 13–26)',
-                                    '3rd Trimester (Weeks 27–40)',
-                                  ].map((v) {
-                                    return DropdownMenuItem<String>(
-                                      value: v,
-                                      child: Text(
-                                        v,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Color(0xFF1A2B3C),
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setState(() => _selectedTrimester = v);
-                                }
-                              },
+                              decoration: const InputDecoration(
+                                hintText: 'Enter week (1–40)',
+                                suffixText: 'Week',
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                              ),
                             ),
                           ),
                         ],
